@@ -14,6 +14,7 @@ on shared servers where $HOME is a network mount.
 
 from __future__ import annotations
 
+import os
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -25,7 +26,7 @@ from genomics_dcnn.data.preprocess import encode_sequences
 LABEL_MAP = {0: "non-promoter", 1: "promoter"}
 SEQ_LEN   = 251
 
-CACHE_DIR = Path("/tmp/genomic_benchmarks")
+CACHE_DIR = Path(os.environ.get("GENOMIC_CACHE_DIR", "/tmp/genomic_benchmarks"))
 CLOUD_URL = (
     "https://storage.googleapis.com/genomic_benchmarks_cache/"
     "human_nontata_promoters_0.zip"
