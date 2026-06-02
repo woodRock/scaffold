@@ -36,6 +36,20 @@ from genomics_dcnn.models.genomics_pretrain import (
 VOCAB_SIZE = 4
 
 
+def _sample_motif(pwm: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """
+    Sample one DNA sequence from a PWM using vectorised inverse-CDF sampling.
+    Replaces a Python loop over motif positions with a single numpy operation.
+
+    pwm : [4, L]  position frequency matrix
+    returns [L] int64 nucleotide indices
+    """
+    probs    = pwm / (pwm.sum(axis=0, keepdims=True) + 1e-8)   # [4, L]
+    cumprobs = np.cumsum(probs, axis=0)                          # [4, L]
+    u        = rng.random(pwm.shape[1])                          # [L]
+    return (u[None, :] > cumprobs).sum(axis=0).clip(0, 3).astype(np.int64)
+
+
 def _make_batch(
     pwms: list[np.ndarray],
     batch_size: int,
@@ -57,21 +71,17 @@ def _make_batch(
     mask     : [B, L]     bool    — True at masked positions
     """
     lo, hi = n_motifs_range
-    seqs = np.zeros((batch_size, seq_len), dtype=np.int64)
+    seqs   = rng.integers(0, 4, size=(batch_size, seq_len), dtype=np.int64)
 
     for b in range(batch_size):
-        seq = rng.integers(0, 4, size=seq_len)
-        K   = int(rng.integers(lo, hi + 1))
+        K = int(rng.integers(lo, hi + 1))
         for _ in range(K):
             pwm = pwms[int(rng.integers(len(pwms)))]
             L_m = pwm.shape[1]
             if L_m >= seq_len:
                 continue
-            pos   = int(rng.integers(0, seq_len - L_m))
-            probs = pwm / (pwm.sum(axis=0, keepdims=True) + 1e-8)
-            for j in range(L_m):
-                seq[pos + j] = int(rng.choice(4, p=probs[:, j]))
-        seqs[b] = seq
+            pos              = int(rng.integers(0, seq_len - L_m))
+            seqs[b, pos:pos + L_m] = _sample_motif(pwm, rng)
 
     # One-hot encode: [B, L, 4]
     one_hot = np.eye(VOCAB_SIZE, dtype=np.float32)[seqs]
