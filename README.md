@@ -1,5 +1,7 @@
 # Scaffold
 
+![meme](meme.png)
+
 Lightweight dilated CNN for genomic sequence classification with self-supervised pretraining on synthetic JASPAR motif sequences.
 
 ## Overview
