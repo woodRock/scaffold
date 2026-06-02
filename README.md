@@ -134,7 +134,7 @@ The field is dominated by transformer-based masked language models: DNABERT (110
 
 ```bibtex
 @software{scaffold2026,
-  author  = {Wood, Joel},
+  author  = {Wood, Jesse},
   title   = {Scaffold: Self-Supervised Pretraining for DNA Sequence Classification},
   year    = {2026},
   url     = {https://github.com/woodRock/scaffold}
