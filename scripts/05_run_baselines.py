@@ -14,6 +14,9 @@ Usage:
   python scripts/05_run_baselines.py --config configs/finetune_promoters.yaml
 """
 
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+
 import argparse
 import json
 from pathlib import Path

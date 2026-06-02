@@ -11,6 +11,9 @@ Two conditions evaluated identically to chroma-dcnn:
 
 from __future__ import annotations
 
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+
 import copy
 from pathlib import Path
 from typing import Literal

@@ -19,6 +19,9 @@ Results are written to results/promoters_results_lf{fraction}.json so that
 runs at different fractions do not overwrite each other.
 """
 
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+
 import argparse
 import json
 from pathlib import Path
@@ -40,7 +43,7 @@ def main(config_path: str, device: str | None, label_fraction: float) -> None:
 
     seeds = cfg["task"].get("cv_seeds", list(range(10)))
 
-    print(f"Loading human_nontata_promoters … (label_fraction={label_fraction})")
+    print(f"Loading human_nontata_promoters … (label_fraction={label_fraction})", flush=True)
     X, y = load_all_splits()
 
     finetuner = GenomicsFinetuner(cfg, X, y, device=device, label_fraction=label_fraction)
