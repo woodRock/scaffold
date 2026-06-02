@@ -13,7 +13,6 @@ env/
 # Data and checkpoints
 data/
 checkpoints/
-results/
 
 # Jupyter
 .ipynb_checkpoints/
