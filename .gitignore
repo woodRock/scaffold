@@ -10,9 +10,9 @@ build/
 venv/
 env/
 
-# Data and checkpoints
-data/
-checkpoints/
+# Data and checkpoints (root-level only)
+/data/
+/checkpoints/
 
 # Jupyter
 .ipynb_checkpoints/
