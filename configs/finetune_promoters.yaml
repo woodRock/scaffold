@@ -1,0 +1,28 @@
+model:
+  seq_len: 251
+  vocab_size: 4
+  cnn_channels: 128
+  kernel_size: 7
+  dropout: 0.3
+
+task:
+  name: human_nontata_promoters
+  num_classes: 2
+  cv_folds: 5
+  cv_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  cv_strategy: kfold
+
+finetuning:
+  epochs: 50
+  batch_size: 32
+  lr: 1.0e-3
+  lr_scratch: 1.0e-3
+  weight_decay: 0.01
+  early_stopping_patience: 10
+  grad_clip: 1.0
+
+pretrained_checkpoints:
+  genomics_pretrain: checkpoints/best.pt
+
+output:
+  results_dir: results/

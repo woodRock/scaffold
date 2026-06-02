@@ -1,0 +1,22 @@
+model:
+  seq_len: 251
+  vocab_size: 4
+  cnn_channels: 128
+  kernel_size: 7
+  dropout: 0.1
+
+pretraining:
+  n_iterations: 50000
+  batch_size: 32
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  mask_ratio: 0.15
+  grad_clip: 1.0
+  log_every: 1000
+
+data:
+  jaspar_path: data/jaspar.json
+  n_motifs_range: [0, 5]   # motifs injected per synthetic sequence
+
+output:
+  checkpoint_dir: checkpoints/
