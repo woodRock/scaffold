@@ -140,14 +140,14 @@ def pretrain_genomics(
     sched = CosineAnnealingLR(opt, T_max=n_iterations, eta_min=lr * 0.01)
     rng   = np.random.default_rng()
 
-    print(f"\nPretraining GenomicsMaskedPredictor (masked nucleotide prediction)")
-    print(f"  JASPAR PWMs   : {len(pwms)}")
-    print(f"  Seq length    : {config.seq_len}")
-    print(f"  CNN channels  : {config.cnn_channels}")
-    print(f"  Mask ratio    : {mask_ratio}")
-    print(f"  Iterations    : {n_iterations}")
-    print(f"  Batch size    : {batch_size}")
-    print(f"  Device        : {device}\n")
+    print(f"\nPretraining GenomicsMaskedPredictor (masked nucleotide prediction)", flush=True)
+    print(f"  JASPAR PWMs   : {len(pwms)}", flush=True)
+    print(f"  Seq length    : {config.seq_len}", flush=True)
+    print(f"  CNN channels  : {config.cnn_channels}", flush=True)
+    print(f"  Mask ratio    : {mask_ratio}", flush=True)
+    print(f"  Iterations    : {n_iterations}", flush=True)
+    print(f"  Batch size    : {batch_size}", flush=True)
+    print(f"  Device        : {device}\n", flush=True)
 
     best_loss    = float("inf")
     running_loss = 0.0
@@ -176,7 +176,7 @@ def pretrain_genomics(
             avg = running_loss / log_every
             if avg < best_loss:
                 best_loss = avg
-            print(f"  iter {it:>6d}/{n_iterations}  loss={avg:.4f}  best={best_loss:.4f}")
+            print(f"  iter {it:>6d}/{n_iterations}  loss={avg:.4f}  best={best_loss:.4f}", flush=True)
             running_loss = 0.0
 
     ckpt_dir  = Path(cfg["output"]["checkpoint_dir"])
@@ -191,5 +191,5 @@ def pretrain_genomics(
         "final_loss":     best_loss,
     }, ckpt_path)
 
-    print(f"\nCheckpoint saved → {ckpt_path}  (best loss={best_loss:.4f})")
+    print(f"\nCheckpoint saved → {ckpt_path}  (best loss={best_loss:.4f})", flush=True)
     return str(ckpt_path)
