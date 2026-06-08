@@ -25,7 +25,6 @@ from torch import Tensor
 
 @dataclass
 class GenomicsPretrainConfig:
-    seq_len: int = 251
     vocab_size: int = 4       # ACGT
     cnn_channels: int = 128   # must match GenomicsCNNConfig.cnn_channels
     kernel_size: int = 7
@@ -74,7 +73,6 @@ class GenomicsMaskedPredictor(nn.Module):
         super().__init__()
         ch = config.cnn_channels
         self.nuc_proj  = nn.Linear(config.vocab_size, ch)
-        self.pos_embed = nn.Embedding(config.seq_len, ch)
 
         k, d = config.kernel_size, config.dropout
         self.cnn = nn.Sequential(
@@ -96,7 +94,6 @@ class GenomicsMaskedPredictor(nn.Module):
         logits : [M, vocab_size]  predictions at masked positions only
         """
         B, L, V = x.shape
-        h = self.nuc_proj(x.reshape(B * L, V)).view(B, L, -1)         # [B, L, ch]
-        h = h + self.pos_embed(torch.arange(L, device=x.device))      # [B, L, ch]
-        h = self.cnn(h.transpose(1, 2)).transpose(1, 2)               # [B, L, ch]
-        return self.pred_head(h[mask])                                  # [M, vocab_size]
+        h = self.nuc_proj(x.reshape(B * L, V)).view(B, L, -1)    # [B, L, ch]
+        h = self.cnn(h.transpose(1, 2)).transpose(1, 2)           # [B, L, ch]
+        return self.pred_head(h[mask])                              # [M, vocab_size]

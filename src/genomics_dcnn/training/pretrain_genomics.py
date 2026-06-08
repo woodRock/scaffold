@@ -57,12 +57,15 @@ def _make_batch(
     n_motifs_range: tuple[int, int],
     mask_ratio: float,
     rng: np.random.Generator,
+    bg_probs: np.ndarray | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Generate a batch of synthetic DNA sequences with random masking.
+    Generate a batch of synthetic DNA sequences with motif-priority masking.
 
-    Each sequence: uniform ACGT background with K random JASPAR motifs injected.
-    Then 15% of positions are masked (zeroed) and their original indices returned.
+    Background is sampled from a biased nucleotide distribution (default: ~41% GC,
+    matching human genome composition) rather than uniform random.  K JASPAR motifs
+    are injected per sequence.  Masking fills its budget from injected-motif positions
+    first, then random background — concentrating gradient signal on learnable regions.
 
     Returns
     -------
@@ -70,8 +73,19 @@ def _make_batch(
     targets  : [B, L]     int64   — original nucleotide indices (0 at unmasked)
     mask     : [B, L]     bool    — True at masked positions
     """
+    if bg_probs is None:
+        # Approximate human genome base composition: ~41% GC (A=T=0.295, C=G=0.205)
+        bg_probs = np.array([0.295, 0.205, 0.205, 0.295], dtype=np.float64)
+
     lo, hi = n_motifs_range
-    seqs   = rng.integers(0, 4, size=(batch_size, seq_len), dtype=np.int64)
+
+    # Background: biased multinomial instead of i.i.d. uniform
+    seqs = np.stack([
+        rng.choice(VOCAB_SIZE, size=seq_len, p=bg_probs)
+        for _ in range(batch_size)
+    ]).astype(np.int64)
+
+    motif_pos_sets: list[set[int]] = [set() for _ in range(batch_size)]
 
     for b in range(batch_size):
         K = int(rng.integers(lo, hi + 1))
@@ -80,21 +94,34 @@ def _make_batch(
             L_m = pwm.shape[1]
             if L_m >= seq_len:
                 continue
-            pos              = int(rng.integers(0, seq_len - L_m))
+            pos = int(rng.integers(0, seq_len - L_m))
             seqs[b, pos:pos + L_m] = _sample_motif(pwm, rng)
+            motif_pos_sets[b].update(range(pos, pos + L_m))
 
     # One-hot encode: [B, L, 4]
     one_hot = np.eye(VOCAB_SIZE, dtype=np.float32)[seqs]
 
-    # Random masking
+    # Motif-priority masking: fill budget from motif positions first, then background
     n_mask  = max(1, int(seq_len * mask_ratio))
     mask    = np.zeros((batch_size, seq_len), dtype=bool)
     targets = seqs.copy()
+
     for b in range(batch_size):
-        idx        = rng.choice(seq_len, size=n_mask, replace=False)
-        mask[b, idx] = True
-    x_masked          = one_hot.copy()
-    x_masked[mask]    = 0.0
+        motif_pos = np.fromiter(motif_pos_sets[b], dtype=np.int64)
+        bg_pos    = np.array([i for i in range(seq_len) if i not in motif_pos_sets[b]], dtype=np.int64)
+
+        chosen: list[np.ndarray] = []
+        if motif_pos.size > 0:
+            n_motif = min(motif_pos.size, n_mask)
+            chosen.append(rng.choice(motif_pos, size=n_motif, replace=False))
+        n_remaining = n_mask - sum(a.size for a in chosen)
+        if n_remaining > 0 and bg_pos.size > 0:
+            chosen.append(rng.choice(bg_pos, size=min(n_remaining, bg_pos.size), replace=False))
+
+        mask[b, np.concatenate(chosen) if chosen else np.array([], dtype=np.int64)] = True
+
+    x_masked       = one_hot.copy()
+    x_masked[mask] = 0.0
 
     mask_t    = torch.from_numpy(mask)
     targets_t = torch.from_numpy(targets)
@@ -129,7 +156,6 @@ def pretrain_genomics(
     mcfg = cfg["model"]
 
     config = GenomicsPretrainConfig(
-        seq_len      = mcfg["seq_len"],
         vocab_size   = mcfg.get("vocab_size", 4),
         cnn_channels = mcfg.get("cnn_channels", 128),
         kernel_size  = mcfg.get("kernel_size", 7),
@@ -144,17 +170,22 @@ def pretrain_genomics(
     wd              = pcfg.get("weight_decay", 1e-4)
     log_every       = pcfg.get("log_every", 500)
     mask_ratio      = pcfg.get("mask_ratio", 0.15)
-    n_motifs_range  = tuple(cfg["data"].get("n_motifs_range", [0, 5]))
+    n_motifs_range  = tuple(cfg["data"].get("n_motifs_range", [1, 6]))
+
+    raw_bg = cfg["data"].get("bg_probs")
+    bg_probs = np.array(raw_bg, dtype=np.float64) if raw_bg is not None else None
 
     opt   = AdamW(model.parameters(), lr=lr, weight_decay=wd)
     sched = CosineAnnealingLR(opt, T_max=n_iterations, eta_min=lr * 0.01)
     rng   = np.random.default_rng()
 
+    effective_bg = bg_probs if bg_probs is not None else np.array([0.295, 0.205, 0.205, 0.295])
     print(f"\nPretraining GenomicsMaskedPredictor (masked nucleotide prediction)", flush=True)
     print(f"  JASPAR PWMs   : {len(pwms)}", flush=True)
-    print(f"  Seq length    : {config.seq_len}", flush=True)
     print(f"  CNN channels  : {config.cnn_channels}", flush=True)
-    print(f"  Mask ratio    : {mask_ratio}", flush=True)
+    print(f"  Mask ratio    : {mask_ratio}  (motif positions prioritised)", flush=True)
+    print(f"  n_motifs      : {n_motifs_range}", flush=True)
+    print(f"  bg_probs ACGT : {effective_bg.tolist()}", flush=True)
     print(f"  Iterations    : {n_iterations}", flush=True)
     print(f"  Batch size    : {batch_size}", flush=True)
     print(f"  Device        : {device}\n", flush=True)
@@ -165,7 +196,7 @@ def pretrain_genomics(
     model.train()
     for it in range(1, n_iterations + 1):
         x_masked, targets, mask = _make_batch(
-            pwms, batch_size, config.seq_len, n_motifs_range, mask_ratio, rng,
+            pwms, batch_size, mcfg["seq_len"], n_motifs_range, mask_ratio, rng, bg_probs,
         )
         x_masked = x_masked.to(device)
         targets  = targets.to(device)

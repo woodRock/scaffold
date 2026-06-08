@@ -16,7 +16,8 @@ pretraining:
 
 data:
   jaspar_path: data/jaspar.json
-  n_motifs_range: [0, 5]   # motifs injected per synthetic sequence
+  n_motifs_range: [1, 6]   # always at least 1 motif per sequence so every batch has learnable signal
+  bg_probs: [0.295, 0.205, 0.205, 0.295]  # A,C,G,T — ~41% GC matching human genome composition
 
 output:
   checkpoint_dir: checkpoints/
